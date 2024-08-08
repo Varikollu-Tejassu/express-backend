@@ -1,1 +1,56 @@
 
+name: Backend server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  setup-ssh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install SSH client
+        run: sudo apt-get install -y openssh-client
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Debug SSH key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | head -n 10
+          echo "SSH Key length: $(echo "${{ secrets.SSH_PRIVATE_KEY }}" | wc -c)"
+          ls -la ~/.ssh
+          cat ~/.ssh/id_rsa
+
+      - name: Add SSH key to agent
+        run: |
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+
+      - name: Test SSH connection
+        run: ssh -o StrictHostKeyChecking=no -T git@github.com || true
+
+      - name: Set up SSH tunnel to EC2 through bastion host
+        run: |
+          ssh -o StrictHostKeyChecking=no -v -fNT -L 2222:10.0.0.47:22 ubuntu@3.110.43.35
+          sleep 5
+
+      - name: Deploy to private EC2 instance
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 2222 ubuntu@localhost << 'EOF'
+            # Deployment commands here
+            sudo su
+            sudo apt get update
+            sudo apt-get install -y docker-compose
+            cd /var/www/html/express-backend/
+            git pull
+            docker-compose up -d --build
+          EOF
