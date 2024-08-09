@@ -6,6 +6,7 @@ const PORT = process.env.PORT || 8000;
 
 // Enable CORS
 app.use(cors());
+app.use(express.static("./"));
 
 // Define routes and middleware
 app.get('/', (req, res) => {
